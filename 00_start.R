@@ -27,26 +27,89 @@ data |>
   group_by(block) |>
   summarise(m = mean(yield))
 
+# Overall mean
+data |>
+  summarise(m = mean(yield))
+
 # -------------------------------------------------------------------------
-# Least-squares -----------------------------------------------------------
+# Linear-Models -----------------------------------------------------------
 # -------------------------------------------------------------------------
 
 n <- 12
 n_blks <- 3
 n_gens <- 4
 
-# Design matrices
-ff <- yield ~ 1 + block + gen
+# Intercept ---------------------------------------------------------------
+
+ff <- yield ~ 1
 str(m <- model.frame(ff, data))
 X <- model.matrix(ff, m)
 y <- matrix(data[, "yield"])
 print(X)
 print(y)
 
-# X = [1 X_blks X_gens]
-X_intercept <- X[, 1, drop = FALSE]
-X_blks <- X[, 2:3, drop = FALSE]
-X_gens <- X[, 4:6, drop = FALSE]
+# Betas (mu)
+Xty <- t(X) %*% y
+XtX <- t(X) %*% X
+qr(XtX)$rank
+XtX_inv <- solve(XtX)
+beta_mu <- XtX_inv %*% Xty
+beta_mu
+y_hat <- X %*% beta_mu
+errors <- y - y_hat
+SSE_mu <- sum(errors^2)
+SSE_mu
+
+# Block -------------------------------------------------------------------
+
+ff <- yield ~ -1 + block
+str(m <- model.frame(ff, data))
+X <- model.matrix(ff, m)
+y <- matrix(data[, "yield"])
+print(X)
+print(y)
+
+# Betas (block)
+Xty <- t(X) %*% y
+XtX <- t(X) %*% X
+qr(XtX)$rank
+XtX_inv <- solve(XtX)
+beta_blk <- XtX_inv %*% Xty
+beta_blk
+y_hat <- X %*% beta_blk
+errors <- y - y_hat
+SSE_blk <- sum(errors^2)
+SSE_blk
+
+# Genotype ----------------------------------------------------------------
+
+ff <- yield ~ -1 + gen
+str(m <- model.frame(ff, data))
+X <- model.matrix(ff, m)
+y <- matrix(data[, "yield"])
+print(X)
+print(y)
+
+# Betas (genotype)
+Xty <- t(X) %*% y
+XtX <- t(X) %*% X
+qr(XtX)$rank
+XtX_inv <- solve(XtX)
+beta_gen <- XtX_inv %*% Xty
+beta_gen
+y_hat <- X %*% beta_gen
+errors <- y - y_hat
+SSE_gen <- sum(errors^2)
+SSE_gen
+
+# All effects -------------------------------------------------------------
+
+ff <- yield ~ 1 + block + gen
+str(m <- model.frame(ff, data))
+X <- model.matrix(ff, m)
+y <- matrix(data[, "yield"])
+print(X)
+print(y)
 
 # Betas
 Xty <- t(X) %*% y
@@ -55,30 +118,76 @@ qr(XtX)$rank
 XtX_inv <- solve(XtX)
 beta <- XtX_inv %*% Xty
 beta
+y_hat <- X %*% beta
+errors <- y - y_hat
+SSE <- sum(errors^2)
+SSE
 
-# Number of effects
-n_coef <- length(beta)
-n_coef
+# Reduction in SS if a factor is added
+SSE_mu
+SSE_mu - SSE_blk
+SSE_mu - SSE_gen
+SSE
 
 # Sigma
 y_hat <- X %*% beta
 errors <- y - y_hat
 SSE <- sum(errors^2)
-SSE / (n - n_coef)
-
-# R(beta) = beta'X'y
-R_beta <- t(beta) %*% t(X) %*% y
-R_mu <- t(beta[1, ]) %*% t(X_intercept) %*% y
-R_blks <- t(beta[2:3, ]) %*% t(X_blks) %*% y
-R_gens <- t(beta[4:6, ]) %*% t(X_gens) %*% y
-
-SC_blks <- R_beta - R_mu - R_gens
-SC_gens <- R_beta - R_mu - R_blks
-SC_blks
-
+sigma_2 <- SSE / (n - n_coef)
+sigma_2
 
 # Using 'lm'
-mod_0 <- lm(formula = yield ~ 1 + block + gen, data = data)
-mod_0
-anova(mod_0)
+mod <- lm(formula = yield ~ 1 + block + gen, data = data)
+mod
+anova(mod)
+vcov(mod)
+XtX_inv * sigma_2
 
+# SST
+SST <- t(y - beta_mu[1]) %*% (y - beta_mu[1])
+SST
+# -------------------------------------------------------------------------
+
+# Number of effects
+n_coef <- length(beta)
+n_coef
+
+# Overall mean
+beta[1] + sum(c(0, beta[2:3])) / 3 + sum(c(0, beta[4:6])) / 4
+beta_mu
+
+# What about the gen missing level?
+print(beta)
+gens <- c("geng1" = 0, beta[4:6, ])
+gens <- beta[1] + sum(c(0, beta[2:3])) / 3 + gens
+gens
+
+# What about the block missing level?
+print(beta)
+blks <- c("block1" = 0, beta[2:3, ])
+blks <- beta[1] + sum(c(0, beta[4:6])) / 4 + blks
+blks
+
+# From the model
+emmeans(mod, ~gen)
+sqrt(XtX_inv[4:6, 4:6] * sigma_2)
+
+emmeans(mod, pairwise ~ gen)
+
+# -------------------------------------------------------------------------
+# asreml ------------------------------------------------------------------
+# -------------------------------------------------------------------------
+
+asreml.options(Cfixed = TRUE)
+mod_asr <- asreml(fixed = y ~ block + gen, data = data)
+summary(mod_asr)
+
+# Coefficients
+mod_asr$coefficients$fixed
+mod_asr$Cfixed
+preds <- predict(mod_asr, classify = "gen", vcov = TRUE, sed = TRUE)
+preds$pvals
+preds$vcov
+preds$sed
+sqrt(sigma_2 / 3) # SE of the BLUE
+sqrt(sigma_2 / 3 + sigma_2 / 3) # SE of the difference
