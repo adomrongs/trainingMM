@@ -43,6 +43,7 @@ n_gens <- 4
 
 ff <- yield ~ 1
 str(m <- model.frame(ff, data))
+ones <- model.matrix(ff, m)
 X <- model.matrix(ff, m)
 y <- matrix(data[, "yield"])
 print(X)
@@ -62,7 +63,7 @@ SSE_mu
 
 # Block -------------------------------------------------------------------
 
-ff <- yield ~ -1 + block
+ff <- yield ~ block
 str(m <- model.frame(ff, data))
 X <- model.matrix(ff, m)
 y <- matrix(data[, "yield"])
@@ -133,7 +134,7 @@ SSE
 y_hat <- X %*% beta
 errors <- y - y_hat
 SSE <- sum(errors^2)
-sigma_2 <- SSE / (n - n_coef)
+sigma_2 <- SSE / (n - 6)
 sigma_2
 
 # Using 'lm'
@@ -146,6 +147,7 @@ XtX_inv * sigma_2
 # SST
 SST <- t(y - beta_mu[1]) %*% (y - beta_mu[1])
 SST
+
 # -------------------------------------------------------------------------
 
 # Number of effects
@@ -171,8 +173,9 @@ blks
 # From the model
 emmeans(mod, ~gen)
 sqrt(XtX_inv[4:6, 4:6] * sigma_2)
-
 emmeans(mod, pairwise ~ gen)
+
+sqrt(sigma_2/3 + sigma_2/3)
 
 # -------------------------------------------------------------------------
 # asreml ------------------------------------------------------------------
