@@ -137,16 +137,30 @@ SSE <- sum(errors^2)
 sigma_2 <- SSE / (n - 6)
 sigma_2
 
+# ANOVA
+anova_dt <- data.frame(
+  Source = c("block", "gen", "residuals"),
+  Df = c(n_blks - 1, n_gens - 1, n - length(beta)),
+  SSq = c(SSE_mu - SSE_blk, SSE_mu - SSE_gen, SSE)
+) |>
+  mutate(
+    MSq = SSq / Df,
+    F.value = MSq / MSq[3],
+    `Pr(>F)` = pf(q = F.value, df1 = Df, df2 = Df[3], lower.tail = FALSE)
+  ) |>
+  mutate(
+    F.value = ifelse(Source == "residuals", NA, F.value),
+    `Pr(>F)` = ifelse(Source == "residuals", NA, `Pr(>F)`)
+  )
+anova_dt
+
 # Using 'lm'
 mod <- lm(formula = yield ~ 1 + block + gen, data = data)
 mod
+coef(mod)
 anova(mod)
 vcov(mod)
 XtX_inv * sigma_2
-
-# SST
-SST <- t(y - beta_mu[1]) %*% (y - beta_mu[1])
-SST
 
 # -------------------------------------------------------------------------
 
@@ -161,36 +175,17 @@ beta_mu
 # What about the gen missing level?
 print(beta)
 gens <- c("geng1" = 0, beta[4:6, ])
-gens <- beta[1] + sum(c(0, beta[2:3])) / 3 + gens
+gens <- beta[1] + sum(beta[2:3]) / 3 + gens
 gens
 
 # What about the block missing level?
 print(beta)
 blks <- c("block1" = 0, beta[2:3, ])
-blks <- beta[1] + sum(c(0, beta[4:6])) / 4 + blks
+blks <- beta[1] + sum(beta[4:6]) / 4 + blks
 blks
 
 # From the model
 emmeans(mod, ~gen)
 sqrt(XtX_inv[4:6, 4:6] * sigma_2)
 emmeans(mod, pairwise ~ gen)
-
-sqrt(sigma_2/3 + sigma_2/3)
-
-# -------------------------------------------------------------------------
-# asreml ------------------------------------------------------------------
-# -------------------------------------------------------------------------
-
-asreml.options(Cfixed = TRUE)
-mod_asr <- asreml(fixed = y ~ block + gen, data = data)
-summary(mod_asr)
-
-# Coefficients
-mod_asr$coefficients$fixed
-mod_asr$Cfixed
-preds <- predict(mod_asr, classify = "gen", vcov = TRUE, sed = TRUE)
-preds$pvals
-preds$vcov
-preds$sed
-sqrt(sigma_2 / 3) # SE of the BLUE
-sqrt(sigma_2 / 3 + sigma_2 / 3) # SE of the difference
+sqrt(sigma_2 / 3 + sigma_2 / 3)
