@@ -2,6 +2,8 @@ library(tidyverse)
 library(emmeans)
 library(lme4)
 library(MASS)
+library(asreml)
+library(LMMsolver)
 
 # RCBD
 # 4 gens
@@ -16,7 +18,6 @@ str(data)
 # asreml ------------------------------------------------------------------
 # -------------------------------------------------------------------------
 
-library(asreml)
 asreml.options(Cfixed = TRUE)
 mod_asr <- asreml(fixed = yield ~ block + gen, data = data)
 summary(mod_asr)
@@ -28,5 +29,25 @@ preds <- predict(mod_asr, classify = "gen", vcov = TRUE, sed = TRUE)
 preds$pvals
 preds$vcov
 preds$sed
+sigma_2 <- mod_asr$sigma2
 sqrt(sigma_2 / 3) # SE of the BLUE
 sqrt(sigma_2 / 3 + sigma_2 / 3) # SE of the difference
+
+# -------------------------------------------------------------------------
+# LMMsolver ---------------------------------------------------------------
+# -------------------------------------------------------------------------
+
+mod_lmm <- LMMsolve(fixed = yield ~ block + gen, data = data)
+mod_lmm
+coef(mod_lmm, se = TRUE)
+diagnosticsMME(mod_lmm)
+displayMME(mod_lmm)
+C <- mod_lmm$C
+solve(C)
+predict(mod_lmm, newdata = data.frame(block = "1", gen = "g1"))
+
+# -------------------------------------------------------------------------
+# sommer ------------------------------------------------------------------
+# -------------------------------------------------------------------------
+
+
