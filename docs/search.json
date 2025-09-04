@@ -1,0 +1,161 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Home",
+    "section": "",
+    "text": "This webpage is under development.\nOur goal is to build a collection of resources that use R code and mathematical explanations to make concepts in statistical modeling easier to understand.\nWe will begin with the basics of linear models, and progressively extend toward more advanced mixed models, which are widely applied in plant breeding, animal breeding, and many other fields.\n\n\n\n📊 Hands-on examples: R scripts that you can run and adapt.\n\n🧮 Step-by-step math: showing how model equations connect to code.\n\n🧑 Conceptual explanations: to make sense of sums of squares, design matrices, likelihood, variance components, mixed models equations, heritability, and more in the context of plant breeding.",
+    "crumbs": [
+      "Welcome"
+    ]
+  },
+  {
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
+    "section": "",
+    "text": "About this site\n\n1 + 1\n\n[1] 2"
+  },
+  {
+    "objectID": "pages/00_start_lm.html",
+    "href": "pages/00_start_lm.html",
+    "title": "Understanding a linear model",
+    "section": "",
+    "text": "How to compute ANOVA for a randomized complete block design (RCBD) by hand, verify with lm(), and extract genotype means and pairwise comparisons with emmeans.",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#setup-data",
+    "href": "pages/00_start_lm.html#setup-data",
+    "title": "Understanding a linear model",
+    "section": "1) Setup & data",
+    "text": "1) Setup & data\nClewer and Scarisbrick (2001) present a yield trial (t/ha) conducted using a randomized complete block design. The design included three blocks and four cultivars, resulting in 12 experimental plots.\n\nlibrary(tidyverse)\nlibrary(emmeans)\nlibrary(gt)\n\n# Read and coerce factors\ndata &lt;- read.csv(\"../data/example_1.csv\") |&gt;\n  mutate(gen = as.factor(gen), block = as.factor(block))\nhead(data)\n\n  block gen yield\n1     1  g1   7.4\n2     2  g1   6.5\n3     3  g1   5.6\n4     1  g2   9.8\n5     2  g2   6.8\n6     3  g2   6.2\n\nstr(data)\n\n'data.frame':   12 obs. of  3 variables:\n $ block: Factor w/ 3 levels \"1\",\"2\",\"3\": 1 2 3 1 2 3 1 2 3 1 ...\n $ gen  : Factor w/ 4 levels \"g1\",\"g2\",\"g3\",..: 1 1 1 2 2 2 3 3 3 4 ...\n $ yield: num  7.4 6.5 5.6 9.8 6.8 6.2 7.3 6.1 6.4 9.5 ...\n\n\n\nQuick visualization\n\ndata |&gt;\n  ggplot(aes(x = gen, y = yield, color = block)) +\n  geom_point(size = 3) +\n  theme_classic(base_size = 15)\n\n\n\n\nYield by genotype colored by block.\n\n\n\n\n\n\nDescriptive means\n\n# Mean by genotype\nby_gen &lt;- data |&gt;\n  group_by(gen) |&gt;\n  summarise(mean = mean(yield), .groups = \"drop\")\nby_gen |&gt; gt()\n\n\n\n\n\n\n\ngen\nmean\n\n\n\n\ng1\n6.5\n\n\ng2\n7.6\n\n\ng3\n6.6\n\n\ng4\n8.3\n\n\n\n\n\n\n# Mean by block\nby_blk &lt;- data |&gt;\n  group_by(block) |&gt;\n  summarise(mean = mean(yield), .groups = \"drop\")\nby_blk |&gt; gt()\n\n\n\n\n\n\n\nblock\nmean\n\n\n\n\n1\n8.50\n\n\n2\n6.85\n\n\n3\n6.40\n\n\n\n\n\n\n# Overall mean\noverall &lt;- data |&gt;\n  summarise(mean = mean(yield))\noverall\n\n  mean\n1 7.25",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#linear-model-building-blocks",
+    "href": "pages/00_start_lm.html#linear-model-building-blocks",
+    "title": "Understanding a linear model",
+    "section": "2) Linear model building blocks",
+    "text": "2) Linear model building blocks\nWe will progressively build the RCBD model using model.frame() and model.matrix() to see the design matrices explicitly, then solve normal equations. We use:\n\n\\(y\\): response vector (yield)\n\\(X\\): model matrix\n\\(\\hat\\beta = (X^\\top X)^{-1} X^\\top y\\)\nFitted values \\(\\hat y = X\\hat\\beta\\)\nErrors \\(e = y - \\hat y\\)\nSum of squared errors \\(\\text{SSE} = e^\\top e\\)\n\nLet n = 12 observations, n_blks = 3 blocks, n_gens = 4 genotypes.\n\nn &lt;- 12\nn_blks &lt;- 3\nn_gens &lt;- 4\n\n\n2.1 Intercept-only model (overall mean)\n\nff &lt;- yield ~ 1\nm &lt;- model.frame(ff, data)\nX &lt;- model.matrix(ff, m)\ny &lt;- matrix(data$yield)\n\n# Normal equations components\nXty &lt;- t(X) %*% y\nXtX &lt;- t(X) %*% X\nrank_X &lt;- qr(XtX)$rank\nXtX_inv &lt;- solve(XtX)\n\nbeta_mu &lt;- XtX_inv %*% Xty # overall mean (mu)\ny_hat &lt;- X %*% beta_mu\nerrors &lt;- y - y_hat\nSSE_mu &lt;- t(errors) %*% errors\nSSE_mu &lt;- as.numeric(SSE_mu)\n\nlist(rank = rank_X, beta_mu = drop(beta_mu), SSE_mu = SSE_mu)\n\n$rank\n[1] 1\n\n$beta_mu\n(Intercept) \n       7.25 \n\n$SSE_mu\n[1] 18.81\n\n\n\n\n2.2 Add blocks\n\nff &lt;- yield ~ -1 + block\nm &lt;- model.frame(ff, data)\nX &lt;- model.matrix(ff, m)\ny &lt;- matrix(data$yield)\n\nXty &lt;- t(X) %*% y\nXtX &lt;- t(X) %*% X\nrank_X &lt;- qr(XtX)$rank\nXtX_inv &lt;- solve(XtX)\n\nbeta_blk &lt;- XtX_inv %*% Xty\nSSE_blk &lt;- t(y - X %*% beta_blk) %*% (y - X %*% beta_blk)\nSSE_blk &lt;- as.numeric(SSE_blk)\n\nlist(rank = rank_X, beta_blk = drop(beta_blk), SSE_blk = SSE_blk)\n\n$rank\n[1] 3\n\n$beta_blk\nblock1 block2 block3 \n  8.50   6.85   6.40 \n\n$SSE_blk\n[1] 9.03\n\n\n\n\n2.3 Genotype main effects (no intercept)\nWe fit yield ~ -1 + gen to obtain cell means directly for genotypes.\n\nff &lt;- yield ~ -1 + gen\nm &lt;- model.frame(ff, data)\nX &lt;- model.matrix(ff, m)\ny &lt;- matrix(data$yield)\n\nXty &lt;- t(X) %*% y\nXtX &lt;- t(X) %*% X\nrank_X &lt;- qr(XtX)$rank\nXtX_inv &lt;- solve(XtX)\n\nbeta_gen &lt;- XtX_inv %*% Xty\nSSE_gen &lt;- t(y - X %*% beta_gen) %*% (y - X %*% beta_gen)\nSSE_gen &lt;- as.numeric(SSE_gen)\n\nm2 &lt;- list(rank = rank_X, beta_gen = drop(beta_gen), SSE_gen = SSE_gen)\n\n\n\n2.4 Full model: intercept + blocks + genotypes\n\nff &lt;- yield ~ 1 + block + gen\nm &lt;- model.frame(ff, data)\nX &lt;- model.matrix(ff, m)\ny &lt;- matrix(data$yield)\n\nXty &lt;- t(X) %*% y\nXtX &lt;- t(X) %*% X\nrank_X &lt;- qr(XtX)$rank\nXtX_inv &lt;- solve(XtX)\n\nbeta &lt;- XtX_inv %*% Xty\nSSE &lt;- t(y - X %*% beta) %*% (y - X %*% beta)\nSSE &lt;- as.numeric(SSE)\n\nlist(rank = rank_X, betas = drop(beta), SSE = SSE)\n\n$rank\n[1] 6\n\n$betas\n(Intercept)      block2      block3       geng2       geng3       geng4 \n       7.75       -1.65       -2.10        1.10        0.10        1.80 \n\n$SSE\n[1] 2.4",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#reduction-in-ss-logic-and-anova-table-by-hand",
+    "href": "pages/00_start_lm.html#reduction-in-ss-logic-and-anova-table-by-hand",
+    "title": "Understanding a linear model",
+    "section": "3) Reduction-in-SS logic and ANOVA table (by hand)",
+    "text": "3) Reduction-in-SS logic and ANOVA table (by hand)\nThe partial sums of squares for block and gen can be obtained as reductions from the intercept-only model:\n\nSSE_mu               # intercept-only\n\n[1] 18.81\n\nSSE_mu - SSE_blk     # SS for blocks\n\n[1] 9.78\n\nSSE_mu - SSE_gen     # SS for genotypes\n\n[1] 6.63\n\nSSE                  # residual SS from full model\n\n[1] 2.4\n\n\nWe now assemble an ANOVA table. Residual df is n - p, where p is the number of coefficients in the full model.\n\n# Sigma^2 estimate using the full model (p = length(beta))\nsigma_2 &lt;- SSE / (n - length(beta))\nsigma_2\n\n[1] 0.4\n\nanova_dt &lt;- data.frame(\n  Source = c(\"block\", \"gen\", \"residuals\"),\n  Df     = c(n_blks - 1, n_gens - 1, n - length(beta)),\n  SSq    = c(SSE_mu - SSE_blk, SSE_mu - SSE_gen, SSE)\n) |&gt;\n  mutate(\n    MSq    = SSq / Df,\n    F.value = MSq / MSq[3],\n    `Pr(&gt;F)` = pf(q = F.value, df1 = Df, df2 = Df[3], lower.tail = FALSE),\n    F.value = ifelse(Source == \"residuals\", NA, F.value),\n    `Pr(&gt;F)` = ifelse(Source == \"residuals\", NA, `Pr(&gt;F)`)\n  )\n\nanova_dt\n\n     Source Df  SSq  MSq F.value      Pr(&gt;F)\n1     block  2 9.78 4.89  12.225 0.007650536\n2       gen  3 6.63 2.21   5.525 0.036730328\n3 residuals  6 2.40 0.40      NA          NA\n\n\n::: {.callout-note} Why does this work? In fixed-effects ANOVA, Type-I SS for adding a factor equals the reduction in SSE between nested models. Here we use the intercept-only model as the baseline; adding block or gen reduces SSE by their respective SS. :::",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#verify-with-lm",
+    "href": "pages/00_start_lm.html#verify-with-lm",
+    "title": "Understanding a linear model",
+    "section": "4) Verify with lm()",
+    "text": "4) Verify with lm()\n\nmod &lt;- lm(yield ~ 1 + block + gen, data = data)\nsummary(mod)\n\n\nCall:\nlm(formula = yield ~ 1 + block + gen, data = data)\n\nResiduals:\n    Min      1Q  Median      3Q     Max \n-0.5500 -0.3625 -0.0500  0.1750  0.9500 \n\nCoefficients:\n            Estimate Std. Error t value Pr(&gt;|t|)    \n(Intercept)   7.7500     0.4472  17.330 2.37e-06 ***\nblock2       -1.6500     0.4472  -3.690  0.01021 *  \nblock3       -2.1000     0.4472  -4.696  0.00334 ** \ngeng2         1.1000     0.5164   2.130  0.07719 .  \ngeng3         0.1000     0.5164   0.194  0.85284    \ngeng4         1.8000     0.5164   3.486  0.01305 *  \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nResidual standard error: 0.6325 on 6 degrees of freedom\nMultiple R-squared:  0.8724,    Adjusted R-squared:  0.7661 \nF-statistic: 8.205 on 5 and 6 DF,  p-value: 0.01173\n\ncoef(mod)\n\n(Intercept)      block2      block3       geng2       geng3       geng4 \n       7.75       -1.65       -2.10        1.10        0.10        1.80 \n\nanova(mod)\n\nAnalysis of Variance Table\n\nResponse: yield\n          Df Sum Sq Mean Sq F value   Pr(&gt;F)   \nblock      2   9.78    4.89  12.225 0.007651 **\ngen        3   6.63    2.21   5.525 0.036730 * \nResiduals  6   2.40    0.40                    \n---\nSignif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n\nround(vcov(mod), 5)\n\n            (Intercept) block2 block3    geng2    geng3    geng4\n(Intercept)     0.20000   -0.1   -0.1 -0.13333 -0.13333 -0.13333\nblock2         -0.10000    0.2    0.1  0.00000  0.00000  0.00000\nblock3         -0.10000    0.1    0.2  0.00000  0.00000  0.00000\ngeng2          -0.13333    0.0    0.0  0.26667  0.13333  0.13333\ngeng3          -0.13333    0.0    0.0  0.13333  0.26667  0.13333\ngeng4          -0.13333    0.0    0.0  0.13333  0.13333  0.26667\n\n# Check that (X'X)^{-1} * sigma^2 matches vcov\nround(XtX_inv * sigma_2, 5)\n\n            (Intercept) block2 block3    geng2    geng3    geng4\n(Intercept)     0.20000   -0.1   -0.1 -0.13333 -0.13333 -0.13333\nblock2         -0.10000    0.2    0.1  0.00000  0.00000  0.00000\nblock3         -0.10000    0.1    0.2  0.00000  0.00000  0.00000\ngeng2          -0.13333    0.0    0.0  0.26667  0.13333  0.13333\ngeng3          -0.13333    0.0    0.0  0.13333  0.26667  0.13333\ngeng4          -0.13333    0.0    0.0  0.13333  0.13333  0.26667",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#interpreting-coefficients-under-treatment-coding",
+    "href": "pages/00_start_lm.html#interpreting-coefficients-under-treatment-coding",
+    "title": "Understanding a linear model",
+    "section": "5) Interpreting coefficients under treatment coding",
+    "text": "5) Interpreting coefficients under treatment coding\nWith block and gen as factors and an intercept present, R uses treatment (reference-cell) coding by default. The printed beta therefore contains:\n\nbeta[1]: the intercept (mean for the reference levels block1 and gen1 reference)\nbeta[2:3]: effects for non-reference blocks\nbeta[4:6]: effects for non-reference genotypes\n\nYou can reconstruct overall mean, genotype cell means, and block means as follows.\n\n# Number of coefficients in full model\nn_coef &lt;- length(beta)\n\n# Overall mean reconstructed from coefficients\nmu_recon &lt;- beta[1] + sum(c(0, beta[2:3])) / n_blks + sum(c(0, beta[4:6])) / n_gens\nmu_recon\n\n[1] 7.25\n\n# Compare with the intercept-only estimate\nbeta_mu\n\n            [,1]\n(Intercept) 7.25\n\n\n\n5.1 Genotype means including the missing (reference) level\n\n# beta currently has: (Intercept), block2, block3, gen2, gen3, gen4\n# Create a named vector for gen effects including the reference level set to 0\nprint(beta)\n\n             [,1]\n(Intercept)  7.75\nblock2      -1.65\nblock3      -2.10\ngeng2        1.10\ngeng3        0.10\ngeng4        1.80\n\ngens &lt;- c(\"geng1\" = 0, beta[4:6, ])\n# Add back the intercept and average block effect\ngens &lt;- beta[1] + sum(beta[2:3]) / n_blks + gens\ngens\n\ngeng1 geng2 geng3 geng4 \n  6.5   7.6   6.6   8.3 \n\n\n\n\n5.2 Block means including the missing (reference) level\n\nprint(beta)\n\n             [,1]\n(Intercept)  7.75\nblock2      -1.65\nblock3      -2.10\ngeng2        1.10\ngeng3        0.10\ngeng4        1.80\n\nblks &lt;- c(\"block1\" = 0, beta[2:3, ])\nblks &lt;- beta[1] + sum(beta[4:6]) / n_gens + blks\nblks\n\nblock1 block2 block3 \n  8.50   6.85   6.40",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#estimated-marginal-means-and-pairwise-comparisons",
+    "href": "pages/00_start_lm.html#estimated-marginal-means-and-pairwise-comparisons",
+    "title": "Understanding a linear model",
+    "section": "6) Estimated marginal means and pairwise comparisons",
+    "text": "6) Estimated marginal means and pairwise comparisons\nemmeans provides adjusted means (marginal over the other factors) and convenient contrasts.\n\n# Genotype adjusted means\nemm_gen &lt;- emmeans(mod, ~gen)\nemm_gen\n\n gen emmean    SE df lower.CL upper.CL\n g1     6.5 0.365  6     5.61     7.39\n g2     7.6 0.365  6     6.71     8.49\n g3     6.6 0.365  6     5.71     7.49\n g4     8.3 0.365  6     7.41     9.19\n\nResults are averaged over the levels of: block \nConfidence level used: 0.95 \n\n# Standard errors of genotype via (X'X)^{-1}\nsqrt(diag(XtX_inv)[4:6] * sigma_2) \n\n    geng2     geng3     geng4 \n0.5163978 0.5163978 0.5163978 \n\n# Pairwise genotype comparisons\npairs(emm_gen)\n\n contrast estimate    SE df t.ratio p.value\n g1 - g2      -1.1 0.516  6  -2.130  0.2447\n g1 - g3      -0.1 0.516  6  -0.194  0.9971\n g1 - g4      -1.8 0.516  6  -3.486  0.0486\n g2 - g3       1.0 0.516  6   1.936  0.3066\n g2 - g4      -0.7 0.516  6  -1.356  0.5656\n g3 - g4      -1.7 0.516  6  -3.292  0.0609\n\nResults are averaged over the levels of: block \nP value adjustment: tukey method for comparing a family of 4 estimates \n\n# For a quick hand-check of a simple pairwise SE when balanced:\nsqrt(sigma_2 / 3 + sigma_2 / 3)\n\n[1] 0.5163978\n\n\n\n\n\n\n\n\nImportant\n\n\n\nNotice that the standard errors via \\((X' X)^{-1}\\sigma^2\\) are different to the ones return by emmeans. Interestingly those from \\((X' X)^{-1}\\sigma^2\\) look exactly like the pairwise genotype comparison Standard Errors. Why? We will see why in the next article.",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#what-you-learned",
+    "href": "pages/00_start_lm.html#what-you-learned",
+    "title": "Understanding a linear model",
+    "section": "7) What you learned",
+    "text": "7) What you learned\n\nHow to construct \\(X\\), solve \\((X^\\top X)^{-1} X^\\top y\\), and compute SSE.\nHow reductions in SSE across nested models yield sums of squares for factors.\nHow to rebuild means for reference and non-reference levels under treatment coding.\nHow to validate results with lm() and extract adjusted means and pairwise tests using emmeans.",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#reproducibility",
+    "href": "pages/00_start_lm.html#reproducibility",
+    "title": "Understanding a linear model",
+    "section": "Reproducibility",
+    "text": "Reproducibility\n\nsessionInfo()\n\nR version 4.4.2 (2024-10-31 ucrt)\nPlatform: x86_64-w64-mingw32/x64\nRunning under: Windows 11 x64 (build 26100)\n\nMatrix products: default\n\n\nlocale:\n[1] LC_COLLATE=English_United States.utf8 \n[2] LC_CTYPE=English_United States.utf8   \n[3] LC_MONETARY=English_United States.utf8\n[4] LC_NUMERIC=C                          \n[5] LC_TIME=English_United States.utf8    \n\ntime zone: America/Chicago\ntzcode source: internal\n\nattached base packages:\n[1] stats     graphics  grDevices utils     datasets  methods   base     \n\nother attached packages:\n [1] kableExtra_1.4.0 emmeans_1.10.7   lubridate_1.9.4  forcats_1.0.0   \n [5] stringr_1.5.1    dplyr_1.1.4      purrr_1.0.2      readr_2.1.5     \n [9] tidyr_1.3.1      tibble_3.3.0     ggplot2_3.5.2    tidyverse_2.0.0 \n\nloaded via a namespace (and not attached):\n [1] utf8_1.2.6         sandwich_3.1-1     generics_0.1.4     xml2_1.3.7        \n [5] stringi_1.8.7      lattice_0.22-6     hms_1.1.3          digest_0.6.37     \n [9] magrittr_2.0.3     evaluate_1.0.3     grid_4.4.2         timechange_0.3.0  \n[13] estimability_1.5.1 RColorBrewer_1.1-3 mvtnorm_1.3-3      fastmap_1.2.0     \n[17] jsonlite_2.0.0     Matrix_1.7-1       survival_3.7-0     multcomp_1.4-28   \n[21] viridisLite_0.4.2  scales_1.4.0       TH.data_1.1-3      codetools_0.2-20  \n[25] cli_3.6.3          rlang_1.1.4        splines_4.4.2      withr_3.0.2       \n[29] yaml_2.3.10        tools_4.4.2        tzdb_0.4.0         coda_0.19-4.1     \n[33] vctrs_0.6.5        R6_2.6.1           zoo_1.8-14         lifecycle_1.0.4   \n[37] htmlwidgets_1.6.4  MASS_7.3-61        pkgconfig_2.0.3    pillar_1.11.0     \n[41] gtable_0.3.6       glue_1.8.0         systemfonts_1.2.3  xfun_0.51         \n[45] tidyselect_1.2.1   rstudioapi_0.17.1  knitr_1.49         xtable_1.8-4      \n[49] farver_2.1.2       htmltools_0.5.8.1  labeling_0.4.3     svglite_2.1.3     \n[53] rmarkdown_2.29     compiler_4.4.2    \n\n\n::: {.callout-tip} Common pitfalls - Mixing character vectors and factors: always coerce to factors for design matrices. - Forgetting that with an intercept, one level per factor is the reference (not shown explicitly in model.matrix()). - Using the wrong residual df: it is n - p where p is the number of estimated coefficients in the full model. :::",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#reduction-in-ss-and-anova-table-by-hand",
+    "href": "pages/00_start_lm.html#reduction-in-ss-and-anova-table-by-hand",
+    "title": "Understanding a linear model",
+    "section": "3) Reduction-in-SS and ANOVA table (by hand)",
+    "text": "3) Reduction-in-SS and ANOVA table (by hand)\nThe partial sums of squares for block and gen can be obtained as reductions from the intercept-only model:\n\nSSE_mu               # intercept-only\n\n[1] 18.81\n\nSSE_mu - SSE_blk     # SS for blocks\n\n[1] 9.78\n\nSSE_mu - SSE_gen     # SS for genotypes\n\n[1] 6.63\n\nSSE                  # residual SS from full model\n\n[1] 2.4\n\n\nWe now assemble an ANOVA table. Residual df is n - p, where p is the number of coefficients in the full model.\n\n# Sigma^2 estimate using the full model (p = length(beta))\nsigma_2 &lt;- SSE / (n - length(beta))\nsigma_2\n\n[1] 0.4\n\nanova_dt &lt;- data.frame(\n  Source = c(\"block\", \"gen\", \"residuals\"),\n  Df     = c(n_blks - 1, n_gens - 1, n - length(beta)),\n  SSq    = c(SSE_mu - SSE_blk, SSE_mu - SSE_gen, SSE)\n) |&gt;\n  mutate(\n    MSq    = SSq / Df,\n    F.value = MSq / MSq[3],\n    `Pr(&gt;F)` = pf(q = F.value, df1 = Df, df2 = Df[3], lower.tail = FALSE),\n    F.value = ifelse(Source == \"residuals\", NA, F.value),\n    `Pr(&gt;F)` = ifelse(Source == \"residuals\", NA, `Pr(&gt;F)`)\n  )\n\nanova_dt\n\n     Source Df  SSq  MSq F.value      Pr(&gt;F)\n1     block  2 9.78 4.89  12.225 0.007650536\n2       gen  3 6.63 2.21   5.525 0.036730328\n3 residuals  6 2.40 0.40      NA          NA\n\n\n\n\n\n\n\n\nNote\n\n\n\nWhy does this work? In fixed-effects ANOVA, Type-I SS for adding a factor equals the reduction in SSE between nested models. Here we use the intercept-only model as the baseline; adding block or gen reduces SSE by their respective SS.",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#reduction-in-ss-and-anova-table",
+    "href": "pages/00_start_lm.html#reduction-in-ss-and-anova-table",
+    "title": "Understanding a linear model",
+    "section": "3) Reduction-in-SS and ANOVA table",
+    "text": "3) Reduction-in-SS and ANOVA table\nThe partial sums of squares for block and gen can be obtained as reductions from the intercept-only model:\n\nSSE_mu # intercept-only\n\n[1] 18.81\n\nSSE_mu - SSE_blk # SS for blocks\n\n[1] 9.78\n\nSSE_mu - SSE_gen # SS for genotypes\n\n[1] 6.63\n\nSSE # residual SS from full model\n\n[1] 2.4\n\n\nWe now assemble an ANOVA table. Residual df is n - p, where p is the number of coefficients in the full model.\n\n# Sigma^2 estimate using the full model (p = length(beta))\nsigma_2 &lt;- SSE / (n - length(beta))\nsigma_2\n\n[1] 0.4\n\nanova_dt &lt;- data.frame(\n  Source = c(\"block\", \"gen\", \"residuals\"),\n  Df     = c(n_blks - 1, n_gens - 1, n - length(beta)),\n  SSq    = c(SSE_mu - SSE_blk, SSE_mu - SSE_gen, SSE)\n) |&gt;\n  mutate(\n    MSq = SSq / Df,\n    F.value = MSq / MSq[3],\n    `Pr(&gt;F)` = pf(q = F.value, df1 = Df, df2 = Df[3], lower.tail = FALSE),\n    F.value = ifelse(Source == \"residuals\", NA, F.value),\n    `Pr(&gt;F)` = ifelse(Source == \"residuals\", NA, `Pr(&gt;F)`)\n  )\n\nanova_dt\n\n     Source Df  SSq  MSq F.value      Pr(&gt;F)\n1     block  2 9.78 4.89  12.225 0.007650536\n2       gen  3 6.63 2.21   5.525 0.036730328\n3 residuals  6 2.40 0.40      NA          NA\n\n\n\n\n\n\n\n\nNote\n\n\n\nWhy does this work? In fixed-effects ANOVA, Type-I SS for adding a factor equals the reduction in SSE between nested models. Here we use the intercept-only model as the baseline; adding block or gen reduces SSE by their respective SS.",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "pages/00_start_lm.html#what-we-learned",
+    "href": "pages/00_start_lm.html#what-we-learned",
+    "title": "Understanding a linear model",
+    "section": "7) What we learned",
+    "text": "7) What we learned\n\nHow to construct \\(X\\), solve \\((X^\\top X)^{-1} X^\\top y\\), and compute SSE.\nHow reductions in SSE across nested models yield sums of squares for factors.\nHow to rebuild means for reference and non-reference levels under treatment coding.\nHow to validate results with lm() and extract adjusted means and pairwise tests using emmeans.",
+    "crumbs": [
+      "Starting LM",
+      "ANOVA and fixed effects"
+    ]
+  },
+  {
+    "objectID": "index.html#what-to-expect",
+    "href": "index.html#what-to-expect",
+    "title": "Home",
+    "section": "",
+    "text": "📊 Hands-on examples: R scripts that you can run and adapt.\n\n🧮 Step-by-step math: showing how model equations connect to code.\n\n🧑 Conceptual explanations: to make sense of sums of squares, design matrices, likelihood, variance components, mixed models equations, heritability, and more in the context of plant breeding.",
+    "crumbs": [
+      "Welcome"
+    ]
+  }
+]

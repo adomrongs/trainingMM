@@ -1,0 +1,50 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  page-navigation: true
+  title: "trainingMM"
+  site-url: "google"
+  repo-url: google
+
+  page-footer:
+    right: "This page is built with ❤️ and [Quarto](https://quarto.org/)."
+    left: "&copy; UW-Madison, 2025"
+
+  sidebar:
+    # logo: "images/openscapes_hex.png"
+    pinned: true
+    align: center
+    tools:
+      - icon: github
+        href: https://github.com/AparicioJohan/trainingMM
+        text: "GitHub repository"
+
+    style: "docked"
+    search: true
+    collapse-level: 1
+    contents:
+      - href: index.qmd
+        text: Welcome
+      - section: "Starting LM"
+        contents:
+          - href: pages/00_start_lm.html
+            text: ANOVA and fixed effects
+          - href: pages/00_start_lm.qmd
+            text: Linear combinations (SE)
+          - href: pages/00_start_lm.qmd
+            text: Likelihood
+          - href: pages/00_start_lm.qmd
+            text: Other software
+      - section: "Starting LMM"
+        contents:
+          - href: pages/00_start_lm.html
+            text: Mixed model equations
+
+format:
+  html:
+    theme: cosmo
+    code-copy: true
+    code-overflow: wrap
+    toc: true
